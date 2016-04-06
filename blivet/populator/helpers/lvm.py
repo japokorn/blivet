@@ -37,8 +37,7 @@ from ...storage_log import log_method_call
 from .devicepopulator import DevicePopulator
 from .formatpopulator import FormatPopulator
 
-from ...staticdata.lvm_info import lvs_info, pvs_info
-
+from ...static_data.lvm_info import lvs_info, pvs_info
 
 import logging
 log = logging.getLogger("blivet")

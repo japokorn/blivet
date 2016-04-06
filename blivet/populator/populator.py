@@ -44,8 +44,7 @@ from ..flags import flags
 from ..storage_log import log_method_call
 from ..threads import SynchronizedMeta
 from .helpers import get_device_helper, get_format_helper
-
-from ..staticdata.lvm_info import lvs_info, pvs_info
+from ..static_data import lvs_info, pvs_info
 
 import logging
 log = logging.getLogger("blivet")

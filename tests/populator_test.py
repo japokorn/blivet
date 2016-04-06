@@ -899,8 +899,6 @@ class LVMFormatPopulatorTestCase(FormatPopulatorTestCase):
         pv_info.pe_start = 0
         pv_info.pv_free = 0
 
-        devicetree._pvs_cache = dict()
-        devicetree._pvs_cache[sentinel.pv_path] = pv_info
         device.path = sentinel.pv_path
 
         vg_device = Mock()
@@ -908,7 +906,7 @@ class LVMFormatPopulatorTestCase(FormatPopulatorTestCase):
         vg_device.lvs = []
         get_device_by_uuid.return_value = vg_device
 
-        with patch("blivet.staticdata.lvm_info.PVsInfo.cache", new_callable=PropertyMock) as mock_pvs_cache:
+        with patch("blivet.static_data.lvm_info.PVsInfo.cache", new_callable=PropertyMock) as mock_pvs_cache:
             mock_pvs_cache.return_value = {sentinel.pv_path: pv_info}
             with patch("blivet.udev.device_get_format", return_value=self.udev_type):
                 helper = self.helper_class(devicetree, data, device)
@@ -933,7 +931,7 @@ class LVMFormatPopulatorTestCase(FormatPopulatorTestCase):
         pv_info.vg_free_count = 0
         pv_info.vg_pv_count = 1
 
-        with patch("blivet.staticdata.lvm_info.PVsInfo.cache", new_callable=PropertyMock) as mock_pvs_cache:
+        with patch("blivet.static_data.lvm_info.PVsInfo.cache", new_callable=PropertyMock) as mock_pvs_cache:
             mock_pvs_cache.return_value = {sentinel.pv_path: pv_info}
             with patch("blivet.udev.device_get_format", return_value=self.udev_type):
                 helper = self.helper_class(devicetree, data, device)
@@ -971,7 +969,6 @@ class LVMFormatPopulatorTestCase(FormatPopulatorTestCase):
 
         lv_info = {lv1_name: lv1,
                    lv2_name: lv2}
-        devicetree._lvs_cache = lv_info
 
         device.format.container_uuid = pv_info.vg_uuid
 
@@ -980,9 +977,9 @@ class LVMFormatPopulatorTestCase(FormatPopulatorTestCase):
             return next((d for d in devicetree.devices if d.uuid == uuid), None)
         get_device_by_uuid.side_effect = gdbu
 
-        with patch("blivet.staticdata.lvm_info.PVsInfo.cache", new_callable=PropertyMock) as mock_pvs_cache:
+        with patch("blivet.static_data.lvm_info.PVsInfo.cache", new_callable=PropertyMock) as mock_pvs_cache:
             mock_pvs_cache.return_value = {sentinel.pv_path: pv_info}
-            with patch("blivet.staticdata.lvm_info.LVsInfo.cache", new_callable=PropertyMock) as mock_lvs_cache:
+            with patch("blivet.static_data.lvm_info.LVsInfo.cache", new_callable=PropertyMock) as mock_lvs_cache:
                 mock_lvs_cache.return_value = lv_info
                 with patch("blivet.udev.device_get_format", return_value=self.udev_type):
                     self.assertEqual(devicetree.get_device_by_name(pv_info.vg_name, incomplete=True), None)
