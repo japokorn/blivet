@@ -1,6 +1,8 @@
 # vim:set fileencoding=utf-8
 from unittest.mock import patch, PropertyMock
 import unittest
+import os
+import blivet
 
 from blivet.deviceaction import ActionCreateDevice
 from blivet.deviceaction import ActionDestroyDevice
@@ -21,6 +23,7 @@ from blivet.size import Size
 
 from blivet.tasks import availability
 
+from blivet.util import create_sparse_tempfile
 
 class DeviceDependenciesTestCase(unittest.TestCase):
 
@@ -129,3 +132,103 @@ class MockingDeviceDependenciesTestCase2(unittest.TestCase):
         self.assertFalse(fmt.supported)
         self.assertFalse(fmt.formattable)
         self.assertFalse(fmt.destroyable)
+
+class MissingWeakDependenciesTestCase(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(self._clean_up)
+        self.disk1_file = create_sparse_tempfile("disk1", Size("2GiB"))
+
+    def _clean_up(self):
+        # reload all libblockdev plugins
+        blivet.blockdev.try_reinit(require_plugins=None, reload=False)
+        os.unlink(self.disk1_file)
+
+    def test_weak_dependencies(self):
+
+        bvt = blivet.Blivet()
+        # reinitialize blockdev without the plugins
+        # TODO: uncomment (workaround (1/2) for blivet.reset fail)
+        #blivet.blockdev.try_reinit(require_plugins=[], reload=True)
+
+        bvt.disk_images["disk1"] = self.disk1_file
+
+        try:
+            bvt.reset()
+        except blivet.blockdev.BlockDevNotImplementedError as e:
+            self.fail("Improper handling of missing libblockdev plugin")
+
+        # TODO: remove line (workaround (2/2) for blivet.reset fail)
+        print(blivet.blockdev.try_reinit(require_plugins=[], reload=True))
+
+        disk1 = bvt.devicetree.get_device_by_name("disk1")
+
+        try:
+            bvt.initialize_disk(disk1)
+        except blivet.blockdev.BlockDevNotImplementedError:
+            self.fail("Improper handling of missing libblockdev plugin")
+
+        try:
+            pv = bvt.new_partition(size=Size("8GiB"), fmt_type="lvmpv")
+            btrfs = bvt.new_partition(size=Size("1GiB"), fmt_type="btrfs")
+        except blivet.blockdev.BlockDevNotImplementedError as e:
+            self.fail("Improper handling of missing libblockdev plugin")
+
+        try:
+            bvt.create_device(pv)
+            bvt.create_device(btrfs)
+        except blivet.blockdev.BlockDevNotImplementedError:
+            self.fail("Improper handling of missing libblockdev plugin")
+        bvt.devicetree._add_device(pv)
+        bvt.devicetree._add_device(btrfs)
+
+        try:
+            vg = bvt.new_vg(parents=[pv])
+        except blivet.blockdev.BlockDevNotImplementedError:
+            self.fail("Improper handling of missing libblockdev plugin")
+        bvt.devicetree._add_device(vg)
+
+        try:
+            lv1 = bvt.new_lv(fmt_type="ext4", size=Size("1GiB"), parents=[vg])
+            lv2 = bvt.new_lv(fmt_type="ext4", size=Size("1GiB"), parents=[vg])
+        except blivet.blockdev.BlockDevNotImplementedError:
+            self.fail("Improper handling of missing libblockdev plugin")
+        bvt.devicetree._add_device(lv1)
+        bvt.devicetree._add_device(lv2)
+
+        try:
+            pool = bvt.new_lv_from_lvs(vg, name='pool', seg_type="thin-pool", from_lvs=[lv1, lv2])
+        except blivet.blockdev.BlockDevNotImplementedError:
+            self.fail("Improper handling of missing libblockdev plugin")
+        bvt.devicetree._add_device(pool)
+
+        try:
+            bvt.destroy_device(pool)
+        except blivet.blockdev.BlockDevNotImplementedError:
+            self.fail("Improper handling of missing libblockdev plugin")
+
+        try:
+            bvt.new_btrfs(parents=[btrfs])
+        except blivet.blockdev.BlockDevNotImplementedError:
+            self.fail("Improper handling of missing libblockdev plugin")
+
+        lv3 = bvt.new_lv(fmt_type="luks", size=Size("1GiB"), parents=[vg])
+        bvt.devicetree._add_device(lv3)
+        try:
+            with patch.object(StorageDevice, "resizable", new_callable=PropertyMock(return_value=True)):
+                bvt.resize_device(lv3, Size("2GiB"))
+        except blivet.blockdev.BlockDevNotImplementedError:
+            self.fail("Improper handling of missing libblockdev plugin")
+
+        try:
+            bvt.new_tmp_fs(fmt=disk1.format, size=Size("500MiB"))
+        except blivet.blockdev.BlockDevNotImplementedError:
+            self.fail("Improper handling of missing libblockdev plugin")
+
+        raid1 = bvt.new_partition(size=Size("1GiB"), fmt_type="mdmember")
+        raid2 = bvt.new_partition(size=Size("1GiB"), fmt_type="mdmember")
+
+        try:
+            bvt.new_mdarray(level='raid0', parents=[raid1, raid2])
+        except blivet.blockdev.BlockDevNotImplementedError:
+            self.fail("Improper handling of missing libblockdev plugin")
+
